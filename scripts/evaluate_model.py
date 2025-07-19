@@ -232,7 +232,7 @@ def main():
     env = DecoderEnv(env_config, code, error_model)
     
     # Initialize simulator integration
-    simulator_config = config.get('simulator', {})
+    simulator_config = config.config.get('simulator', {})
     simulator_integration = SimulatorIntegration(simulator_config, code, error_model)
     simulator_integration.integrate_with_env(env)
     

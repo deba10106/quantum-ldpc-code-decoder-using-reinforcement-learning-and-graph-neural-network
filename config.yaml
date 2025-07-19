@@ -42,9 +42,9 @@ environment:
     action_cost_weight: -0.1   # β: Penalty for taking actions
     success_bonus: 200.0       # γ: Bonus for resolving syndrome
     logical_fail_penalty: -300.0  # δ: Penalty for logical failure
-    step_penalty: -0.02       # ε: Small penalty per step
-    degeneracy_bonus: 1.0     # κ: Bonus for reducing syndrome weight
-    hardware_penalty_weight: 5.0  # ζ: Weight for hardware penalty
+    step_penalty: -0.05       # ε: Small penalty per step
+    early_success_bonus: 2.0  # Increased bonus for early syndrome resolution
+    hardware_penalty_weight: 0.3  # Reduced hardware penalty to focus on success rate
     hardware_penalty:         # Hardware penalty configuration
       enabled: true
       gate_latency_map: "configs/hardware/gate_latency.json"
@@ -111,8 +111,9 @@ gnn:
   dropout: 0.15             # Slightly increased dropout for better regularization
   attention:
     enabled: true           # Enable attention mechanisms
-    num_heads: 4            # Number of attention heads
-    attention_dropout: 0.1  # Attention-specific dropout
+    num_heads: 8            # Increased number of attention heads
+    attention_type: 'gat'   # Using GAT for better graph structure learning
+    attention_dropout: 0.2  # Increased dropout for better generalization
   residual:
     enabled: true          # Enable residual connections
     layer_norm: true       # Use layer normalization
@@ -124,11 +125,19 @@ gnn:
 # Curriculum learning configuration
 curriculum:
   enabled: true
-  stages:                     # Curriculum stages
-    - name: "basic"
-      error_types: ["depolarizing"]
-      error_rates: [0.005, 0.01]
-      episodes: 1000          # Reduced for faster training
+  stages:
+    - error_rate: 0.005
+      min_episodes: 500
+      success_threshold: 0.85
+    - error_rate: 0.01
+      min_episodes: 500
+      success_threshold: 0.8
+    - error_rate: 0.02
+      min_episodes: 500
+      success_threshold: 0.75
+    - error_rate: 0.05
+      min_episodes: 500
+      success_threshold: 0.7
     - name: "measurement_errors"
       error_types: ["depolarizing", "measurement"]
       error_rates: [0.01]
