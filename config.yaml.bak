@@ -1,0 +1,180 @@
+# config.yaml - Main configuration file for LDPC Decoder RL-GNN
+
+# System settings
+system:
+  seed: 42                    # Random seed for reproducibility
+  device: "cpu"               # Device to run on ("cuda" or "cpu") - using CPU for compatibility
+  num_workers: 2              # Number of parallel workers
+  log_level: "INFO"           # Logging level
+
+# Code configuration
+code:
+  type: "lifted_product"      # Code type: "lifted_product" or "balanced_product"
+  parameters:                 # Code-specific parameters
+    n_checks: 32
+    n_bits: 64
+    distance: 8
+  custom_code_path: null      # Optional path to custom code definition
+
+# Error model configuration
+error_model:
+  primary_type: "depolarizing"  # Primary error channel
+  error_rate: 0.01             # Physical error rate
+  measurement_error_rate: 0.005 # Measurement error rate
+  correlations:                # Correlation settings
+    enabled: false             # Disabled for faster training
+    spatial_decay: 0.8
+    temporal_correlation: 0.2
+  custom_models:               # Custom error model definitions
+    - name: "hardware_inspired"
+      crosstalk_strength: 0.3
+      hotspot_regions: [[0, 5], [10, 15]]
+
+# Environment configuration (gymnasium)
+environment:
+  max_steps: 50               # Maximum steps per episode (reduced for faster training)
+  observation_type: "syndrome_graph"  # Type of observation
+  reward_function:           # Modular hardware-aware reward function parameters
+    delta_syndrome_weight: 1.0  # α: Weight for syndrome weight change
+    action_cost_weight: -0.1   # β: Penalty for taking actions
+    success_bonus: 200.0       # γ: Bonus for resolving syndrome
+    logical_fail_penalty: -300.0  # δ: Penalty for logical failure
+    step_penalty: -0.02       # ε: Small penalty per step
+    degeneracy_bonus: 1.0     # κ: Bonus for reducing syndrome weight
+    hardware_penalty_weight: 5.0  # ζ: Weight for hardware penalty
+    hardware_penalty:         # Hardware penalty configuration
+      enabled: true
+      gate_latency_map: "configs/hardware/gate_latency.json"
+      crosstalk_map: "configs/hardware/crosstalk.json"
+      fidelity_map: "configs/hardware/fidelity.json"
+      latency_weight: 1.0     # Weight for gate latency in penalty
+      crosstalk_weight: 5.0   # Weight for crosstalk in penalty
+      fidelity_weight: 3.0    # Weight for gate fidelity in penalty
+      distance_penalty_enabled: true
+      distance_penalty_factor: 0.05
+  reward_normalization:       # Reward normalization parameters
+    enabled: true
+    min_reward: -500.0
+    max_reward: 300.0
+  shape_shifting:             # Shape shifting parameters
+    enabled: true
+    curriculum_stage_rewards:  # Rewards per curriculum stage
+      stage1:                 # Initial stage (hardware-unaware)
+        delta_syndrome_weight: 1.5
+        action_cost_weight: -0.05
+        success_bonus: 200.0
+        logical_fail_penalty: -300.0
+        step_penalty: -0.01
+        degeneracy_bonus: 1.5
+        hardware_penalty_weight: 0.0  # No hardware penalty in stage 1
+      stage2:                 # Intermediate stage (mild hardware awareness)
+        delta_syndrome_weight: 1.2
+        action_cost_weight: -0.08
+        success_bonus: 200.0
+        logical_fail_penalty: -300.0
+        step_penalty: -0.015
+        degeneracy_bonus: 1.2
+        hardware_penalty_weight: 2.5  # Reduced hardware penalty in stage 2
+      stage3:                 # Advanced stage (full hardware awareness)
+        delta_syndrome_weight: 1.0
+        action_cost_weight: -0.1
+        success_bonus: 200.0
+        logical_fail_penalty: -300.0
+        step_penalty: -0.02
+        degeneracy_bonus: 1.0
+        hardware_penalty_weight: 5.0  # Full hardware penalty in stage 3
+
+# RL algorithm configuration (stable-baselines3)
+rl:
+  algorithm: "PPO"            # Must be PPO (only supported algorithm)
+  hyperparameters:            # PPO hyperparameters
+    n_steps: 1024             # Reduced for faster training
+    batch_size: 64
+    n_epochs: 5               # Reduced for faster training
+    gamma: 0.99
+    learning_rate: 0.0003
+    clip_range: 0.2
+    ent_coef: 0.01
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+  policy_kwargs:              # Policy network configuration
+    net_arch: [64, 64]        # Smaller network for faster training
+    activation_fn: "tanh"
+
+# GNN configuration (PyTorch Geometric)
+gnn:
+  model_type: "GCN"           # GNN architecture type
+  layers: 2                   # Number of GNN layers (reduced for faster training)
+  hidden_channels: 32         # Hidden channels per layer (reduced for faster training)
+  dropout: 0.1                # Dropout rate
+  aggregation: "mean"         # Aggregation method
+  readout: "global_mean_pool" # Readout function
+
+# Curriculum learning configuration
+curriculum:
+  enabled: true
+  stages:                     # Curriculum stages
+    - name: "basic"
+      error_types: ["depolarizing"]
+      error_rates: [0.005, 0.01]
+      episodes: 1000          # Reduced for faster training
+    - name: "measurement_errors"
+      error_types: ["depolarizing", "measurement"]
+      error_rates: [0.01]
+      measurement_error_rates: [0.005]
+      episodes: 1000          # Reduced for faster training
+
+# Training configuration
+training:
+  total_timesteps: 10000      # Total training timesteps (reduced for testing)
+  eval_freq: 1000             # Evaluation frequency
+  save_freq: 5000             # Model saving frequency
+  n_eval_episodes: 10         # Number of evaluation episodes
+  checkpoint_dir: "./checkpoints"  # Directory for checkpoints
+
+# Evaluation configuration
+evaluation:
+  metrics:                    # Metrics to track
+    - logical_error_rate
+    - syndrome_resolution_rate
+    - decoding_time
+  error_specific_metrics:     # Error-specific metrics
+    pauli_x_success_rate: true
+    pauli_y_success_rate: true
+    pauli_z_success_rate: true
+    measurement_correction_rate: true
+  comparison:                 # Comparison settings
+    compare_with_bp: false    # Disabled for faster evaluation
+    compare_with_mwpm: false  # Disabled for faster evaluation
+  visualization:              # Visualization settings
+    enabled: true
+    plot_types: ["error_rates", "training_curves"]
+  n_episodes: 100             # Number of episodes for evaluation (reduced)
+  error_rates:                # Error rates to evaluate at
+    - 0.01
+    - 0.05
+    - 0.1
+  decoder_types:              # Decoder types to evaluate
+    - "gnn"
+  output_dir: "results"       # Directory to save results
+  model_path: "models/final_model"  # Path to trained model
+
+# Simulator configuration
+simulator:
+  shots: 100                  # Number of shots for syndrome generation (reduced)
+  seed: 42                    # Random seed for simulator
+  circuit_type: "stabilizer"  # Type of circuit to simulate
+  noise_model:                # Noise model for the simulator
+    depolarizing: true        # Use depolarizing noise
+    measurement: true         # Use measurement noise
+    crosstalk: false          # Use crosstalk noise
+  validation:                 # Validation settings
+    check_commutation: true   # Check commutation relations
+    check_distance: true      # Check code distance
+  performance:                # Performance settings
+    parallel_shots: 10        # Number of shots to simulate in parallel (reduced)
+    use_gpu: false            # Use GPU for simulation if available
+  debug:                      # Debug settings
+    verbose: false            # Verbose output
+    save_circuits: false      # Save circuits to file
+    circuit_format: "text"    # Format for saved circuits

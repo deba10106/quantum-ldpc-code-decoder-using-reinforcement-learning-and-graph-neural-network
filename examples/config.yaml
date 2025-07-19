@@ -1,0 +1,163 @@
+# config.yaml - Main configuration file for LDPC Decoder RL-GNN
+
+# System settings
+system:
+  seed: 42                    # Random seed for reproducibility
+  device: "cuda"              # Device to run on ("cuda" or "cpu")
+  num_workers: 4              # Number of parallel workers
+  log_level: "INFO"           # Logging level
+
+# Code configuration
+code:
+  type: "lifted_product"      # Code type: "lifted_product" or "balanced_product"
+  parameters:                 # Code-specific parameters
+    n_checks: 32
+    n_bits: 64
+    distance: 8
+  custom_code_path: null      # Optional path to custom code definition
+
+# Error model configuration
+error_model:
+  primary_type: "depolarizing"  # Primary error channel
+  error_rate: 0.01             # Physical error rate
+  measurement_error_rate: 0.005 # Measurement error rate
+  correlations:                # Correlation settings
+    enabled: true
+    spatial_decay: 0.8
+    temporal_correlation: 0.2
+  custom_models:               # Custom error model definitions
+    - name: "hardware_inspired"
+      crosstalk_strength: 0.3
+      hotspot_regions: [[0, 5], [10, 15]]
+
+# Environment configuration (gymnasium)
+environment:
+  max_steps: 100              # Maximum steps per episode
+  observation_type: "syndrome_graph"  # Type of observation
+  reward_normalization:       # Reward normalization parameters
+    enabled: true
+    min_reward: -10.0
+    max_reward: 10.0
+  shape_shifting:             # Shape shifting parameters
+    enabled: true
+    curriculum_stage_rewards:  # Rewards per curriculum stage
+      stage1:                 # Initial stage (dense rewards)
+        syndrome_resolution_weight: 0.7
+        logical_error_weight: 0.3
+      stage2:                 # Intermediate stage
+        syndrome_resolution_weight: 0.5
+        logical_error_weight: 0.5
+      stage3:                 # Advanced stage (sparse rewards)
+        syndrome_resolution_weight: 0.2
+        logical_error_weight: 0.8
+
+# RL algorithm configuration (stable-baselines3)
+rl:
+  algorithm: "PPO"            # Must be PPO (only supported algorithm)
+  hyperparameters:            # PPO hyperparameters
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99
+    learning_rate: 0.0003
+    clip_range: 0.2
+    ent_coef: 0.01
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+  policy_kwargs:              # Policy network configuration
+    net_arch: [128, 128]
+    activation_fn: "tanh"
+
+# GNN configuration (PyTorch Geometric)
+gnn:
+  model_type: "GCN"           # GNN architecture type
+  layers: 3                   # Number of GNN layers
+  hidden_channels: 64         # Hidden channels per layer
+  dropout: 0.1                # Dropout rate
+  aggregation: "mean"         # Aggregation method
+  readout: "global_mean_pool" # Readout function
+
+# Curriculum learning configuration
+curriculum:
+  enabled: true
+  stages:                     # Curriculum stages
+    - name: "basic"
+      error_types: ["depolarizing"]
+      error_rates: [0.005, 0.01, 0.02]
+      episodes: 10000
+    - name: "measurement_errors"
+      error_types: ["depolarizing", "measurement"]
+      error_rates: [0.01, 0.02]
+      measurement_error_rates: [0.005, 0.01]
+      episodes: 10000
+    - name: "correlations"
+      error_types: ["depolarizing", "measurement", "crosstalk"]
+      error_rates: [0.01, 0.02]
+      correlation_strengths: [0.2, 0.4]
+      episodes: 15000
+    - name: "hardware_inspired"
+      error_types: ["hardware_inspired"]
+      episodes: 20000
+  progression_criteria:       # Criteria to progress to next stage
+    logical_error_threshold: 0.05
+    min_episodes: 5000
+
+# Training configuration
+training:
+  total_timesteps: 2000000    # Total training timesteps
+  eval_freq: 10000            # Evaluation frequency
+  save_freq: 50000            # Model saving frequency
+  n_eval_episodes: 100        # Number of evaluation episodes
+  checkpoint_dir: "./checkpoints"  # Directory for checkpoints
+
+# Evaluation configuration
+evaluation:
+  metrics:                    # Metrics to track
+    - logical_error_rate
+    - syndrome_resolution_rate
+    - decoding_time
+    - memory_usage
+  error_specific_metrics:     # Error-specific metrics
+    pauli_x_success_rate: true
+    pauli_y_success_rate: true
+    pauli_z_success_rate: true
+    measurement_correction_rate: true
+    crosstalk_identification_rate: true
+  comparison:                 # Comparison settings
+    compare_with_bp: true
+    compare_with_mwpm: true
+  visualization:              # Visualization settings
+    enabled: true
+    plot_types: ["error_rates", "training_curves", "confusion_matrix"]
+  n_episodes: 1000            # Number of episodes for evaluation
+  error_rates:                # Error rates to evaluate at
+    - 0.01
+    - 0.05
+    - 0.1
+    - 0.15
+    - 0.2
+  decoder_types:              # Decoder types to evaluate
+    - "gnn"
+    - "mwpm"
+  output_dir: "results"       # Directory to save results
+  model_path: "models/final_model"  # Path to trained model
+
+# Simulator configuration
+simulator:
+  shots: 1000                 # Number of shots for syndrome generation
+  seed: 42                    # Random seed for simulator
+  circuit_type: "stabilizer"  # Type of circuit to simulate
+  noise_model:                # Noise model for the simulator
+    depolarizing: true        # Use depolarizing noise
+    measurement: true         # Use measurement noise
+    crosstalk: false          # Use crosstalk noise
+  validation:                 # Validation settings
+    check_commutation: true   # Check commutation relations
+    check_distance: true      # Check code distance
+  performance:                # Performance settings
+    parallel_shots: 100       # Number of shots to simulate in parallel
+    use_gpu: true             # Use GPU for simulation if available
+  debug:                      # Debug settings
+    verbose: false            # Verbose output
+    save_circuits: false      # Save circuits to file
+    circuit_format: "text"    # Format for saved circuits
