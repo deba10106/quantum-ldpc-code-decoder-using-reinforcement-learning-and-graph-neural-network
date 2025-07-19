@@ -91,12 +91,12 @@ environment:
 rl:
   algorithm: "PPO"            # Must be PPO (only supported algorithm)
   hyperparameters:            # PPO hyperparameters
-    n_steps: 1024             # Reduced for faster training
-    batch_size: 64
-    n_epochs: 5               # Reduced for faster training
+    n_steps: 4096             # Increased steps for better exploration
+    batch_size: 128           # Larger batch size for more stable training
+    n_epochs: 15              # More epochs for better policy optimization
     gamma: 0.99
-    learning_rate: 0.0003
-    clip_range: 0.2
+    learning_rate: 2.0e-4     # Slightly lower learning rate for stability
+    clip_range: 0.15          # Reduced clipping for more conservative updates
     ent_coef: 0.01
     vf_coef: 0.5
     max_grad_norm: 0.5
@@ -106,9 +106,9 @@ rl:
 
 # GNN model configuration
 gnn:
-  hidden_channels: 128       # Hidden dimension size
-  num_layers: 4             # Number of GNN layers
-  dropout: 0.1              # Dropout rate for regularization
+  hidden_channels: 256       # Increased hidden dimension for more capacity
+  num_layers: 6             # Deeper network for better feature extraction
+  dropout: 0.15             # Slightly increased dropout for better regularization
   attention:
     enabled: true           # Enable attention mechanisms
     num_heads: 4            # Number of attention heads
@@ -147,13 +147,13 @@ training:
 data_augmentation:
   enabled: true
   buffer:
-    buffer_capacity: 1000
-    min_reward: -50.0
-    sampling_temperature: 2.0
+    buffer_capacity: 2000    # Larger buffer for more diverse experiences
+    min_reward: -40.0       # Less negative minimum reward
+    sampling_temperature: 1.5 # Lower temperature for more focused sampling
   noise_injection:
-    noise_probability: 0.15
-    noise_types: ['flip', 'swap', 'random']
-    noise_weights: [0.4, 0.3, 0.3]
+    noise_probability: 0.2   # Increased noise for better robustness
+    noise_types: ['flip', 'swap', 'random', 'burst']
+    noise_weights: [0.35, 0.25, 0.2, 0.2]  # Added burst errors
 
 # Evaluation configuration
 evaluation:
